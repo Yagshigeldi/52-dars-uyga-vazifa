@@ -3,6 +3,7 @@ import { catchError } from '../middlewares/error.middleware.js';
 import { userValidator } from '../validations/user.validation.js';
 import { decode, encode } from '../utils/hash.util.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util.js';
+import { transporter } from '../utils/mailer.js';
 
 export class UserController {
     async createAdmin(req, res) {
@@ -13,10 +14,10 @@ export class UserController {
                 throw new Error(`Error on creating admin: ${error}`);
             }
 
-            const { username, password } = value;
-            const checkAdmin = await User.findOne({ role });
+            const { fullName, email, password, role } = value;
+            const checkAdmin = await User.findOne({ role: 'admin' });
 
-            if (checkAdmin && role === 'admin') {
+            if (checkAdmin) {
                 return res.status(409).json({
                     statusCode: 409,
                     message: 'Admin already exists'
@@ -25,7 +26,7 @@ export class UserController {
 
             const hashedPassword = await decode(password, 7);
             const admin = await User.create({
-                username, hashedPassword, role: 'admin'
+                fullName, email, password: hashedPassword, role: 'admin'
             });
 
             return res.status(201).json({
@@ -71,7 +72,7 @@ export class UserController {
                 throw new Error("User not found");
             }
 
-            const isMatchPassword = await encode(password, user.hashedPassword);
+            const isMatchPassword = await encode(password, user.password);
 
             if (!isMatchPassword) {
                 throw new Error("Invalid password");
@@ -91,13 +92,56 @@ export class UserController {
                 maxAge: 30 * 24 * 60 * 60 * 1000
             });
 
+            const mailMessage = {
+                from: process.env.SMTP_USER,
+                to: 'yagshigldi5425@gmail.com',
+                subject: 'Hala Madrid',
+                text: 'Danggg'
+            }
+
+            transporter.sendMail(mailMessage, function (err, info) {
+                if (err) {
+                    console.log(err)
+                    catchError(err, res);
+                } else {
+                    console.log(info);
+                }
+            });
+
             return res.status(200).json({
                 statusCode: 200,
                 message: 'success',
                 data: accessToken
             });
         } catch (error) {
+            console.log(error)
             catchError(error, res);
+        }
+    }
+
+    async signOutUser(req, res) {
+        try {
+            const refreshToken = req.cookies.refreshToken;
+
+            if (!refreshToken) {
+                catchError(res, 401, 'Refresh token not found');
+            }
+
+            const decodedToken = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+            if (!decodedToken) {
+                catchError(res, 401, 'Refresh token expired');
+            }
+
+            res.clearCookie('refreshToken');
+
+            return res.status(200).json({
+                statusCode: 200,
+                message: 'success',
+                data: {}
+            });
+        } catch (error) {
+            catchError(err, res);
         }
     }
 

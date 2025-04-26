@@ -1,4 +1,4 @@
-import { catchError } from "../middlewares/error.middleware.js";
+import { catchError } from '../middlewares/error.middleware.js';
 
 export const adminGuard = (req, res, next) => {
     try {

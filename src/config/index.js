@@ -1,12 +1,9 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 export const config = {
     api: {
         port: process.env.PORT || 5000
     },
     db: {
-        mongoUri: process.env.MONGODB_URL
+        mongoUri: process.env.MONGO_URI
     },
     nodeEnv: process.env.NODE_ENV,
     jwt: {
