@@ -4,6 +4,8 @@ import { userValidator } from '../validations/user.validation.js';
 import { decode, encode } from '../utils/hash.util.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.util.js';
 import { transporter } from '../utils/mailer.js';
+import { otpGenerator } from '../utils/otp-generator.js';
+import { getCache, setCache } from '../utils/cache.js';
 
 export class UserController {
     async createAdmin(req, res) {
@@ -15,9 +17,15 @@ export class UserController {
             }
 
             const { fullName, email, password, role } = value;
-            const checkAdmin = await User.findOne({ role: 'admin' });
+            const existEmail = await User.findOne({ email });
 
-            if (checkAdmin) {
+            if (existEmail) {
+                catchError(res, 409, 'Email already exist');
+            }
+
+            const checkAdmin = await User.findOne({ role });
+
+            if (checkAdmin && role === 'admin') {
                 return res.status(409).json({
                     statusCode: 409,
                     message: 'Admin already exists'
@@ -48,6 +56,12 @@ export class UserController {
             }
 
             const { fullName, email, password } = value;
+            const existEmail = await User.findOne({ email });
+
+            if (existEmail) {
+                catchError(res, 409, 'Email already exist');
+            }
+
             const hashedPassword = await decode(password, 7);
             const newUser = await User.create({
                 fullName, email, password: hashedPassword, role: 'user'
@@ -78,6 +92,64 @@ export class UserController {
                 throw new Error("Invalid password");
             }
 
+            // const payload = {
+            //     id: user._id,
+            //     role: user.role
+            // }
+
+            // const accessToken = generateAccessToken(payload);
+            // const refreshToken = generateRefreshToken(payload);
+
+            // res.cookie('refreshToken', refreshToken, {
+            //     httpOnly: true,
+            //     secure: true,
+            //     maxAge: 30 * 24 * 60 * 60 * 1000
+            // });
+
+            const otp = otpGenerator();
+            const mailMessage = {
+                from: process.env.SMTP_USER,
+                to: 'yagshigeldi5425@gmail.com',
+                subject: 'parking-car',
+                text: otp
+            }
+
+            transporter.sendMail(mailMessage, function (err, info) {
+                if (err) {
+                    console.log(err)
+                    catchError(err, res);
+                } else {
+                    console.log(info);
+                    setCache(user.email, otp);
+                }
+            });
+
+            return res.status(200).json({
+                statusCode: 200,
+                message: 'success',
+                data: {}
+            });
+        } catch (error) {
+            console.log(error)
+            catchError(error, res);
+        }
+    }
+
+    async confirmSignInUser(req, res) {
+        try {
+            const { email, otp } = req.body;
+            const user = await User.findOne({ email });
+
+            if (!user) {
+                catchError(res, 404, 'User not found');
+            }
+
+            const otpCache = getCache(email);
+
+            if (!otpCache || otp != otpCache) {
+                catchError(res, 400, 'OTP expored');
+            }
+
             const payload = {
                 id: user._id,
                 role: user.role
@@ -92,22 +164,6 @@ export class UserController {
                 maxAge: 30 * 24 * 60 * 60 * 1000
             });
 
-            const mailMessage = {
-                from: process.env.SMTP_USER,
-                to: 'yagshigldi5425@gmail.com',
-                subject: 'Hala Madrid',
-                text: 'Danggg'
-            }
-
-            transporter.sendMail(mailMessage, function (err, info) {
-                if (err) {
-                    console.log(err)
-                    catchError(err, res);
-                } else {
-                    console.log(info);
-                }
-            });
-
             return res.status(200).json({
                 statusCode: 200,
                 message: 'success',
@@ -115,7 +171,7 @@ export class UserController {
             });
         } catch (error) {
             console.log(error)
-            catchError(error, res);
+            catchError(res, 500, error.message);
         }
     }
 

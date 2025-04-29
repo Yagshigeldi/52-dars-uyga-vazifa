@@ -10,6 +10,7 @@ router
     .post('/admin', controller.createAdmin)
     .post('/register', controller.registerUser)
     .post('/login', controller.loginUser)
+    .post('/confirm-signIn', controller.confirmSignInUser)
     .post('/signOut', jwtAuthGuard, controller.signOutUser)
     .get('/:id', jwtAuthGuard, controller.getUserById)
     .get('/', controller.getAllUsers)
